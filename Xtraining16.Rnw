@@ -1,0 +1,187 @@
+\documentclass[a4paper,spanish]{article}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+
+
+
+ 
+\title{Sweave - Rstudio, Xtraining 16} 
+
+\author{Said Muñoz Montero$^{1,2}$ \\[1em]
+  \small{$^{1}$ Genómica Computacional, Instituto Nacional de Medicina Genómica} \\
+  \small{$^{2}$ Instituto de Fisiología Celular, UNAM}}
+
+<<style-Sweave, eval=TRUE, echo=FALSE, results=tex>>=
+BiocStyle::latex()
+@
+
+
+\begin{document}
+
+\SweaveOpts{concordance=TRUE}
+
+\maketitle
+
+\begin{abstract}
+El análisis de microarreglos de expresión permite evaluar los genes que se encuentran diferencialmente expresados entre dos grupos. El siguiente reporte muestra el método de normalización que se utilizó para el estudio de \textit{high vs low}, así como los genes diferencialmente expresados.
+
+\end{abstract}
+
+<<echo=FALSE>>=
+options(continue=" ")
+@
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\section{Instalación de paquetes}
+
+Para instalar los paquetes se requiere usar Bioconductor.
+
+<<bioconductor,eval=FALSE>>=
+#Installing packages
+source("https://bioconductor.org/biocLite.R")
+biocLite(c("oligo","pd.hg.u95av2","xtable"))
+@
+
+\subsection{Funciones adicionales}
+<<volcanoplot2>>=
+#Funciones adicionales
+volcanoplot2<-function(TT,M,B,main=""){
+  lfc.status = TT$logFC
+  B.status = TT$B
+  fitCB=data.frame(coef=lfc.status,lods=B.status)
+  x0 = min(lfc.status) -.5
+  x1 = max(lfc.status) +.5
+  y0 = min(B.status) -.5
+  y1 = max(B.status) +.5
+  plot(lfc.status,B.status,col="black", ylim=c(y0,y1), 
+       xlim=c(x0,x1), main=main, pch=16,cex=.35,
+       cex.lab=1.2,xlab="Log Fold Change",
+       ylab="B statistic")
+  par(new=T)
+  abline(v=-M, col="brown", ylab="", xlab="")
+  par(new=T)
+  abline(v=M, col="brown", ylab="", xlab="")
+  par(new=T)
+  abline(h=B, col="black", ylab="", xlab="")
+  par(new=T)
+  ind1 = abs(fitCB$coef)>M
+  ind2 = fitCB$lods >B
+  ind3 = (fitCB$coef>M & fitCB$lods>B)
+  ind4 = (fitCB$coef< -M & fitCB$lods>B)
+  x = as.matrix(fitCB$coef[ind1])
+  y = as.matrix(fitCB$lods[ind1])
+  plot(x, y, col="magenta",ylim=c(y0,y1), 
+       xlim=c(x0,x1),main="", pch = 20, xlab="", 
+       ylab="",cex.lab=1.2)
+  x = as.matrix(fitCB$coef[ind2])
+  y = as.matrix(fitCB$lods[ind2])
+  par(new=T)
+  plot(x, y, col="orange",  ylim=c(y0,y1), 
+       xlim=c(x0,x1), main="", pch = 20, xlab="",
+       ylab="",cex.lab=1.2)
+  x = as.matrix(fitCB$coef[ind3])
+  y = as.matrix(fitCB$lods[ind3])
+  par(new=T)
+  plot(x, y, col="red",  ylim=c(y0,y1), 
+       xlim=c(x0,x1), main="", pch = 20, xlab="", 
+       ylab="",cex.lab=1.2)
+  x = as.matrix(fitCB$coef[ind4])
+  y = as.matrix(fitCB$lods[ind4])
+  par(new=T)
+  plot(x, y, col="darkgreen", ylim=c(y0,y1), 
+       xlim=c(x0,x1), main="", pch = 20, xlab="", 
+       ylab="",cex.lab=1.2)
+}
+@
+
+
+\subsection{Cargar los paquetes necesarios}
+<<>>=
+#Loading package
+library("oligo")
+library("xtable")
+@
+
+\section{Datos crudos}
+<<>>=
+celfiles<-list.celfiles("Data",full.name=TRUE)
+data<-read.celfiles(celfiles)
+colnames(data)<-gsub(".CEL","",colnames(data))
+@
+
+\subsection{Gráficos datos crudos}
+<<RAWfig,fig=TRUE>>=
+#Plots raw data
+colores<-rep(c("red","blue"),each=2)
+boxplot(data,col=colores,main="Boxplot datos crudos",las=2)
+hist(data,col=colores,main="Histograma datos crudos")
+@
+
+\section{Normalización}
+<<>>=
+#RMA
+data.rma<-rma(data,background=TRUE, normalize=TRUE)
+data.rma
+@
+
+\subsection{Gráficos Normalización}
+
+<<>>=
+#Plots RMA
+boxplot(data.rma,col=colores,main="Boxplot RMA",las=2)
+hist(data.rma,col=colores,main="Histograma RMA")
+@
+
+\section{Normalización sin corrección de fondo}
+<<>>=
+#RMA no background
+data.rma.nobg<-rma(data,background=FALSE, normalize=TRUE)
+@
+
+\subsection{Gráficos Normalización sin corrección de fondo}
+<<>>=
+#Plots RMA
+boxplot(data.rma.nobg,col=colores,main="Boxplot RMA",las=2)
+hist(data.rma.nobg,col=colores,main="Histograma RMA")
+@
+
+\section{Análisis diferencial}
+Magia -Análisis diferencial realizado con limma, no mostrado-
+
+\subsection{Gráficos Análisis diferencial}
+<<>>=
+#Revisar DEG
+data.limma<-read.csv("DEG.csv")
+par(mfrow=c(1,1))
+volcanoplot2(data.limma,1,2,main="high vs low")
+@
+
+\subsection{Genes diferencialmente expresados}
+<<>>=
+#Extraer Genes DE
+dge<-subset(data.limma,abs(logFC)>1 & B>2)
+@
+
+<<results=tex>>=
+print(xtable(dge))
+@
+
+<<>>=
+#Genes diferencialmente expresados
+nrow(dge)
+@
+
+<<sessInfo, results=tex, echo=FALSE>>=
+toLatex(sessionInfo())
+@
+
+\bibliography{referencias.bib}
+
+
+\end{document}
